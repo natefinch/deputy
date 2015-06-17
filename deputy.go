@@ -18,9 +18,9 @@ import (
 type ErrorHandling int
 
 const (
-	// StdErrs represents the default handling of command errors - this simply
-	// returns the error from Cmd.Run()
-	StdErrs ErrorHandling = iota
+	// DefaultErrs represents the default handling of command errors - this
+	// simply returns the error from Cmd.Run()
+	DefaultErrs ErrorHandling = iota
 	// FromStderr tells Deputy to convert the stderr output of a command into
 	// the text of an error, if the command exits with an error.
 	FromStderr
@@ -57,7 +57,7 @@ func (r Deputy) Run(cmd *exec.Cmd) error {
 
 	err := runTimeout(cmd, r.Timeout)
 
-	if r.Errors == StdErrs {
+	if r.Errors == DefaultErrs {
 		return err
 	}
 
