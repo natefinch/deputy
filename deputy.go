@@ -1,6 +1,7 @@
 // Copyright 2015 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
+// package deputy provides more advanced options for running commands.
 package deputy
 
 import (
@@ -31,7 +32,7 @@ func Timeout(d time.Duration) Option {
 // error.
 func StdoutErr() Option {
 	return func(r *Deputy) {
-		r.errs = stdout
+		r.stdoutErr = true
 	}
 }
 
@@ -41,28 +42,9 @@ func StdoutErr() Option {
 // error.
 func StderrErr() Option {
 	return func(r *Deputy) {
-		r.errs = stderr
+		r.stderrErr = true
 	}
 }
-
-// StdbothErr returns an Option that tells the Deputy to convert whatever is
-// written to stderr and stdout into a go error to be returned, if the command
-// does not run successfully.  This will be returned instead of the standard
-// exit value error.
-func StdbothErr() Option {
-	return func(r *Deputy) {
-		r.errs = both
-	}
-}
-
-type errSource int
-
-const (
-	std errSource = iota
-	stdout
-	stderr
-	both
-)
 
 // New returns a Deputy that runs commands using the given Options.
 func New(options ...Option) Deputy {
@@ -76,22 +58,23 @@ func New(options ...Option) Deputy {
 // Deputy is a type that runs Commands with advanced options not available from
 // os/exec.
 type Deputy struct {
-	timeout time.Duration
-	errs    errSource
+	timeout   time.Duration
+	stdoutErr bool
+	stderrErr bool
 }
 
 // Run starts the specified command and waits for it to complete.  Its behavior
 // conforms to the Options passed to it at construction time.
 func (r Deputy) Run(cmd *exec.Cmd) error {
 	errsrc := &bytes.Buffer{}
-	if r.errs == stderr || r.errs == both {
+	if r.stderrErr {
 		if cmd.Stderr == nil {
 			cmd.Stderr = errsrc
 		} else {
 			cmd.Stderr = io.MultiWriter(cmd.Stderr, errsrc)
 		}
 	}
-	if r.errs == stdout || r.errs == both {
+	if r.stdoutErr {
 		if cmd.Stdout == nil {
 			cmd.Stdout = errsrc
 		} else {
@@ -101,7 +84,7 @@ func (r Deputy) Run(cmd *exec.Cmd) error {
 
 	err := runTimeout(cmd, r.timeout)
 
-	if r.errs == std {
+	if !r.stdoutErr && !r.stderrErr {
 		return err
 	}
 

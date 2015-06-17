@@ -123,7 +123,7 @@ func (*suite) TestStdbothErr(c *gc.C) {
 		exit:   1,
 		c:      c,
 	}.make()
-	d := New(StdbothErr())
+	d := New(StderrErr(), StdoutErr())
 	err := d.Run(cmd)
 	msg := strings.Replace(err.Error(), "\n", "", -1)
 	c.Assert(msg, gc.Matches, ".*"+stdout+stderr)
