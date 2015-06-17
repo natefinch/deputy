@@ -37,7 +37,7 @@ func (*suite) TestRunTimeout(c *gc.C) {
 		c:       c,
 	}.make()
 
-	err := New(Timeout(time.Millisecond * 100)).Run(cmd)
+	err := Deputy{Timeout: time.Millisecond * 100}.Run(cmd)
 
 	c.Assert(err, gc.NotNil)
 	if e, ok := err.(hasTimeout); !ok {
@@ -52,7 +52,7 @@ func (*suite) TestRunNoTimeout(c *gc.C) {
 		c: c,
 	}.make()
 
-	err := New(Timeout(time.Millisecond * 200)).Run(cmd)
+	err := Deputy{Timeout: time.Millisecond * 200}.Run(cmd)
 
 	c.Assert(err, gc.IsNil)
 }
@@ -64,12 +64,11 @@ func (*suite) TestStdoutErr(c *gc.C) {
 		exit:   1,
 		c:      c,
 	}.make()
-	d := New(StdoutErr())
-	err := d.Run(cmd)
+	err := Deputy{Errors: FromStdout}.Run(cmd)
 	c.Assert(err, gc.ErrorMatches, ".*"+output)
 }
 
-func (*suite) TestStdoutErrOutput(c *gc.C) {
+func (*suite) TestStdoutOutput(c *gc.C) {
 	output := "foooo"
 	out := &bytes.Buffer{}
 	cmd := maker{
@@ -78,13 +77,12 @@ func (*suite) TestStdoutErrOutput(c *gc.C) {
 		c:      c,
 	}.make()
 	cmd.Stdout = out
-	d := New(StdoutErr())
-	err := d.Run(cmd)
+	err := Deputy{Errors: FromStdout}.Run(cmd)
 	c.Assert(err, gc.ErrorMatches, ".*"+output)
 	c.Assert(output, gc.Equals, strings.TrimSpace(out.String()))
 }
 
-func (*suite) TestStderrErrOutput(c *gc.C) {
+func (*suite) TestStderrOutput(c *gc.C) {
 	output := "foooo"
 	out := &bytes.Buffer{}
 
@@ -94,8 +92,7 @@ func (*suite) TestStderrErrOutput(c *gc.C) {
 		c:      c,
 	}.make()
 	cmd.Stderr = out
-	d := New(StderrErr())
-	err := d.Run(cmd)
+	err := Deputy{Errors: FromStderr}.Run(cmd)
 	c.Assert(err, gc.ErrorMatches, ".*"+output)
 	c.Assert(output, gc.Equals, strings.TrimSpace(out.String()))
 }
@@ -108,25 +105,8 @@ func (*suite) TestStderrErr(c *gc.C) {
 		exit:   1,
 		c:      c,
 	}.make()
-	d := New(StderrErr())
-	err := d.Run(cmd)
+	err := Deputy{Errors: FromStderr}.Run(cmd)
 	c.Assert(err, gc.ErrorMatches, ".*"+output)
-}
-
-func (*suite) TestStdbothErr(c *gc.C) {
-	stderr := "stderr"
-	stdout := "stdout"
-
-	cmd := maker{
-		stderr: stderr,
-		stdout: stdout,
-		exit:   1,
-		c:      c,
-	}.make()
-	d := New(StderrErr(), StdoutErr())
-	err := d.Run(cmd)
-	msg := strings.Replace(err.Error(), "\n", "", -1)
-	c.Assert(msg, gc.Matches, ".*"+stdout+stderr)
 }
 
 type maker struct {

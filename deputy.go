@@ -13,68 +13,41 @@ import (
 	"time"
 )
 
-// Option is a type that encapsulates ways to alter Deputy's standard running of
-// commands.
-type Option func(*Deputy)
+// ErrorHandling is a flag that tells Deputy how to handle errors running a
+// command.
+type ErrorHandling int
 
-// Timeout returns an Option that tells the Deputy to terminate the command
-// after an amount of time has passed.  If terminated this way, the error value
-// returned will have a Timeout() bool function that returns true.
-func Timeout(d time.Duration) Option {
-	return func(r *Deputy) {
-		r.timeout = d
-	}
-}
-
-// StdoutErr returns an Option that tells the Deputy to convert whatever is
-// written to stdout into a go error to be returned, if the command does not run
-// successfully.  This will be returned instead of the standard exit value
-// error.
-func StdoutErr() Option {
-	return func(r *Deputy) {
-		r.stdoutErr = true
-	}
-}
-
-// StderrErr returns an Option that tells the Deputy to convert whatever is
-// written to stderr into a go error to be returned, if the command does not run
-// successfully.  This will be returned instead of the standard exit value
-// error.
-func StderrErr() Option {
-	return func(r *Deputy) {
-		r.stderrErr = true
-	}
-}
-
-// New returns a Deputy that runs commands using the given Options.
-func New(options ...Option) Deputy {
-	r := Deputy{}
-	for _, opt := range options {
-		opt(&r)
-	}
-	return r
-}
+const (
+	// StdErrs represents the default handling of command errors - this simply
+	// returns the error from Cmd.Run()
+	StdErrs ErrorHandling = iota
+	// FromStderr tells Deputy to convert the stderr output of a command into
+	// the text of an error, if the command exits with an error.
+	FromStderr
+	// FromStdout tells Deputy to convert the stdout output of a command into
+	// the text of an error, if the command exits with an error.
+	FromStdout
+)
 
 // Deputy is a type that runs Commands with advanced options not available from
 // os/exec.
 type Deputy struct {
-	timeout   time.Duration
-	stdoutErr bool
-	stderrErr bool
+	Timeout time.Duration
+	Errors  ErrorHandling
 }
 
 // Run starts the specified command and waits for it to complete.  Its behavior
 // conforms to the Options passed to it at construction time.
 func (r Deputy) Run(cmd *exec.Cmd) error {
 	errsrc := &bytes.Buffer{}
-	if r.stderrErr {
+	if r.Errors == FromStderr {
 		if cmd.Stderr == nil {
 			cmd.Stderr = errsrc
 		} else {
 			cmd.Stderr = io.MultiWriter(cmd.Stderr, errsrc)
 		}
 	}
-	if r.stdoutErr {
+	if r.Errors == FromStdout {
 		if cmd.Stdout == nil {
 			cmd.Stdout = errsrc
 		} else {
@@ -82,9 +55,9 @@ func (r Deputy) Run(cmd *exec.Cmd) error {
 		}
 	}
 
-	err := runTimeout(cmd, r.timeout)
+	err := runTimeout(cmd, r.Timeout)
 
-	if !r.stdoutErr && !r.stderrErr {
+	if r.Errors == StdErrs {
 		return err
 	}
 
