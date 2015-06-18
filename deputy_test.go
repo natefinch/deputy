@@ -140,9 +140,8 @@ type maker struct {
 func (m maker) make() *exec.Cmd {
 	if runtime.GOOS == "windows" {
 		return m.winCmd()
-	} else {
-		return m.nixCmd()
 	}
+	return m.nixCmd()
 }
 
 func (m maker) winCmd() *exec.Cmd {

@@ -1,7 +1,7 @@
 // Copyright 2015 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-// package deputy provides more advanced options for running commands.
+// Package deputy provides more advanced options for running commands.
 package deputy
 
 import (
@@ -33,7 +33,7 @@ const (
 )
 
 // Deputy is a type that runs Commands with advanced options not available from
-// os/exec.
+// os/exec.  See the comments on field values for details.
 type Deputy struct {
 	// Timeout represents the longest time the command will be allowed to run
 	// before being killed.
