@@ -117,16 +117,16 @@ func (*suite) TestLogs(c *gc.C) {
 		stdout: stdout,
 		c:      c,
 	}.make()
-	outs := []string{}
-	errs := []string{}
+	outs := []interface{}{}
+	errs := []interface{}{}
 
 	err := Deputy{
-		StdoutLog: func(s string) { outs = append(outs, s) },
-		StderrLog: func(s string) { errs = append(errs, s) },
+		StdoutLog: func(args ...interface{}) { outs = append(outs, args...) },
+		StderrLog: func(args ...interface{}) { errs = append(errs, args...) },
 	}.Run(cmd)
 	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(outs, gc.DeepEquals, []string{"foo!", "foo2!"})
-	c.Assert(errs, gc.DeepEquals, []string{"bar!", "bar2!"})
+	c.Assert(outs, gc.DeepEquals, []interface{}{"foo!", "foo2!"})
+	c.Assert(errs, gc.DeepEquals, []interface{}{"bar!", "bar2!"})
 }
 
 type maker struct {

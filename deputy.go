@@ -42,10 +42,10 @@ type Deputy struct {
 	Errors ErrorHandling
 	// StdoutLog takes a function that will receive lines written to stdout from
 	// the command.
-	StdoutLog func(msg string, args ...string)
+	StdoutLog func(args ...interface{})
 	// StdoutLog takes a function that will receive lines written to stderr from
 	// the command.
-	StderrLog func(msg string, args ...string)
+	StderrLog func(args ...interface{})
 
 	stderrPipe io.ReadCloser
 	stdoutPipe io.ReadCloser
@@ -159,7 +159,7 @@ func firstErr(errs ...error) error {
 	return nil
 }
 
-func pipe(log func(string), r io.Reader, errs chan<- error) {
+func pipe(log func(...interface{}), r io.Reader, errs chan<- error) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		w := scanner.Text()

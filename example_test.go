@@ -17,10 +17,10 @@ func Example() {
 	// timeout after 30 seconds.
 	d := deputy.Deputy{
 		Errors:    deputy.FromStderr,
-		StdoutLog: log.Printf,
+		StdoutLog: log.Print,
 		Timeout:   time.Second * 30,
 	}
 	if err := d.Run(exec.Command("foo")); err != nil {
-		log.Log(err)
+		log.Print(err)
 	}
 }
