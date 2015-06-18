@@ -5,6 +5,7 @@
 package deputy
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -14,16 +15,18 @@ import (
 )
 
 // ErrorHandling is a flag that tells Deputy how to handle errors running a
-// command.
+// command.  See the values below for the different modes.
 type ErrorHandling int
 
 const (
 	// DefaultErrs represents the default handling of command errors - this
 	// simply returns the error from Cmd.Run()
 	DefaultErrs ErrorHandling = iota
+
 	// FromStderr tells Deputy to convert the stderr output of a command into
 	// the text of an error, if the command exits with an error.
 	FromStderr
+
 	// FromStdout tells Deputy to convert the stdout output of a command into
 	// the text of an error, if the command exits with an error.
 	FromStdout
@@ -32,22 +35,49 @@ const (
 // Deputy is a type that runs Commands with advanced options not available from
 // os/exec.
 type Deputy struct {
+	// Timeout represents the longest time the command will be allowed to run
+	// before being killed.
 	Timeout time.Duration
-	Errors  ErrorHandling
+	// Errors describes how errors should be handled.
+	Errors ErrorHandling
+	// StdoutLog takes a function that will receive lines written to stdout from
+	// the command.
+	StdoutLog func(msg string, args ...string)
+	// StdoutLog takes a function that will receive lines written to stderr from
+	// the command.
+	StderrLog func(msg string, args ...string)
+
+	stderrPipe io.ReadCloser
+	stdoutPipe io.ReadCloser
 }
 
 // Run starts the specified command and waits for it to complete.  Its behavior
 // conforms to the Options passed to it at construction time.
-func (r Deputy) Run(cmd *exec.Cmd) error {
+func (d Deputy) Run(cmd *exec.Cmd) error {
+	if d.StderrLog != nil {
+		var err error
+		d.stderrPipe, err = cmd.StderrPipe()
+		if err != nil {
+			return err
+		}
+	}
+	if d.StdoutLog != nil {
+		var err error
+		d.stdoutPipe, err = cmd.StdoutPipe()
+		if err != nil {
+			return err
+		}
+	}
+
 	errsrc := &bytes.Buffer{}
-	if r.Errors == FromStderr {
+	if d.Errors == FromStderr {
 		if cmd.Stderr == nil {
 			cmd.Stderr = errsrc
 		} else {
 			cmd.Stderr = io.MultiWriter(cmd.Stderr, errsrc)
 		}
 	}
-	if r.Errors == FromStdout {
+	if d.Errors == FromStdout {
 		if cmd.Stdout == nil {
 			cmd.Stdout = errsrc
 		} else {
@@ -55,9 +85,9 @@ func (r Deputy) Run(cmd *exec.Cmd) error {
 		}
 	}
 
-	err := runTimeout(cmd, r.Timeout)
+	err := d.run(cmd)
 
-	if r.Errors == DefaultErrs {
+	if d.Errors == DefaultErrs {
 		return err
 	}
 
@@ -67,31 +97,76 @@ func (r Deputy) Run(cmd *exec.Cmd) error {
 	return err
 }
 
-func runTimeout(cmd *exec.Cmd, timeout time.Duration) error {
-	if timeout == 0 {
-		return cmd.Run()
-	}
-
-	if err := cmd.Start(); err != nil {
+func (d Deputy) run(cmd *exec.Cmd) error {
+	errs := make(chan error)
+	if err := d.start(cmd, errs); err != nil {
 		return err
+	}
+	if d.Timeout == 0 {
+		return d.wait(cmd, errs)
 	}
 
 	done := make(chan error)
 
 	var err error
 	go func() {
-		err = cmd.Wait()
+		err = d.wait(cmd, errs)
 		close(done)
 	}()
 
 	select {
-	case <-time.After(timeout):
+	case <-time.After(d.Timeout):
 		// this may fail, but there's not much we can do about it
 		_ = cmd.Process.Kill()
 		return timeoutErr{cmd.Path}
 	case <-done:
 		return err
 	}
+}
+
+func (d Deputy) start(cmd *exec.Cmd, errs chan<- error) error {
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	if d.stdoutPipe != nil {
+		go pipe(d.StdoutLog, d.stdoutPipe, errs)
+	}
+	if d.stderrPipe != nil {
+		go pipe(d.StderrLog, d.stderrPipe, errs)
+	}
+	return nil
+}
+
+func (d Deputy) wait(cmd *exec.Cmd, errs <-chan error) error {
+	var err1, err2 error
+	if d.stdoutPipe != nil {
+		err1 = <-errs
+	}
+	if d.stderrPipe != nil {
+		err2 = <-errs
+	}
+	err := cmd.Wait()
+	return firstErr(err, err1, err2)
+}
+
+func firstErr(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func pipe(log func(string), r io.Reader, errs chan<- error) {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		w := scanner.Text()
+		log(w)
+	}
+
+	errs <- scanner.Err()
 }
 
 type timeoutErr struct {

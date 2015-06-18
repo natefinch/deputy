@@ -13,12 +13,14 @@ import (
 
 func Example() {
 	// Make a new deputy that'll return the data written to stderr as the error
-	// and timeout after 30 seconds.
+	// message, log everything written to stdout to this application's log,  and
+	// timeout after 30 seconds.
 	d := deputy.Deputy{
-		Errors:  deputy.FromStderr,
-		Timeout: time.Second * 30,
+		Errors:    deputy.FromStderr,
+		StdoutLog: log.Printf,
+		Timeout:   time.Second * 30,
 	}
 	if err := d.Run(exec.Command("foo")); err != nil {
-		log.Println(err)
+		log.Log(err)
 	}
 }

@@ -109,6 +109,26 @@ func (*suite) TestStderrErr(c *gc.C) {
 	c.Assert(err, gc.ErrorMatches, ".*"+output)
 }
 
+func (*suite) TestLogs(c *gc.C) {
+	stdout := "foo!\necho foo2!"
+	stderr := "bar!\n>&2 echo bar2!"
+	cmd := maker{
+		stderr: stderr,
+		stdout: stdout,
+		c:      c,
+	}.make()
+	outs := []string{}
+	errs := []string{}
+
+	err := Deputy{
+		StdoutLog: func(s string) { outs = append(outs, s) },
+		StderrLog: func(s string) { errs = append(errs, s) },
+	}.Run(cmd)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(outs, gc.DeepEquals, []string{"foo!", "foo2!"})
+	c.Assert(errs, gc.DeepEquals, []string{"bar!", "bar2!"})
+}
+
 type maker struct {
 	stdout  string
 	stderr  string
