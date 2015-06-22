@@ -1,4 +1,4 @@
-# deputy [![GoDoc](https://godoc.org/github.com/juju/deputy?status.svg)](https://godoc.org/github.com/juju/deputy)
+# deputy [![GoDoc](https://godoc.org/github.com/juju/deputy?status.svg)](https://godoc.org/github.com/juju/deputy) [![Build Status](https://drone.io/github.com/juju/deputy/status.png)](https://drone.io/github.com/juju/deputy/latest) [![Coverage Status](https://coveralls.io/repos/juju/deputy/badge.svg?branch=master)](https://coveralls.io/r/juju/deputy?branch=master)
 deputy is a go package that adds smarts on top of os/exec
 
 ![deputy-sm](https://cloud.githubusercontent.com/assets/3185864/8237448/6bc30102-15bd-11e5-9e87-6423197a73d6.jpg)
