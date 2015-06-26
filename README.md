@@ -30,16 +30,17 @@ type Deputy struct {
     // Errors describes how errors should be handled.
     Errors ErrorHandling
     // StdoutLog takes a function that will receive lines written to stdout from
-    // the command.
-    StdoutLog func(string)
+    // the command (with the newline elided).
+    StdoutLog func([]byte)
     // StdoutLog takes a function that will receive lines written to stderr from
-    // the command.
-    StderrLog func(string)
+    // the command (with the newline elided).
+    StderrLog func([]byte)
     // contains filtered or unexported fields
 }
 ```
 Deputy is a type that runs Commands with advanced options not available from
 os/exec.  See the comments on field values for details.
+
 
 ### func (Deputy) Run
 ``` go
@@ -47,6 +48,10 @@ func (d Deputy) Run(cmd *exec.Cmd) error
 ```
 Run starts the specified command and waits for it to complete.  Its behavior
 conforms to the Options passed to it at construction time.
+
+Note that, like cmd.Run, Deputy.Run should not be used with
+StdoutPipe or StderrPipe.
+
 
 ## type ErrorHandling
 ``` go
