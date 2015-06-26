@@ -13,7 +13,7 @@ deputy is a go package that adds smarts on top of os/exec
 // timeout after 30 seconds.
 d := deputy.Deputy{
     Errors:    deputy.FromStderr,
-    StdoutLog: func(s string) { log.Print(s) },
+    StdoutLog: func(b []byte]) { log.Print(string(b)) },
     Timeout:   time.Second * 30,
 }
 if err := d.Run(exec.Command("foo")); err != nil {
