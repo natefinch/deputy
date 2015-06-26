@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"strings"
 	"time"
 )
 
@@ -41,11 +40,11 @@ type Deputy struct {
 	// Errors describes how errors should be handled.
 	Errors ErrorHandling
 	// StdoutLog takes a function that will receive lines written to stdout from
-	// the command.
-	StdoutLog func(string)
+	// the command (with the newline elided).
+	StdoutLog func([]byte)
 	// StdoutLog takes a function that will receive lines written to stderr from
-	// the command.
-	StderrLog func(string)
+	// the command (with the newline elided).
+	StderrLog func([]byte)
 
 	stderrPipe io.ReadCloser
 	stdoutPipe io.ReadCloser
@@ -53,7 +52,35 @@ type Deputy struct {
 
 // Run starts the specified command and waits for it to complete.  Its behavior
 // conforms to the Options passed to it at construction time.
+//
+// Note that, like cmd.Run, Deputy.Run should not be used with
+// StdoutPipe or StderrPipe.
 func (d Deputy) Run(cmd *exec.Cmd) error {
+	if err := d.makePipes(cmd); err != nil {
+		return err
+	}
+
+	errsrc := &bytes.Buffer{}
+	if d.Errors == FromStderr {
+		cmd.Stderr = dualWriter(cmd.Stderr, errsrc)
+	}
+	if d.Errors == FromStdout {
+		cmd.Stdout = dualWriter(cmd.Stdout, errsrc)
+	}
+
+	err := d.run(cmd)
+
+	if d.Errors == DefaultErrs {
+		return err
+	}
+
+	if err != nil && errsrc.Len() > 0 {
+		return fmt.Errorf("%s: %s", err, bytes.TrimSpace(errsrc.Bytes()))
+	}
+	return err
+}
+
+func (d *Deputy) makePipes(cmd *exec.Cmd) error {
 	if d.StderrLog != nil {
 		var err error
 		d.stderrPipe, err = cmd.StderrPipe()
@@ -68,33 +95,17 @@ func (d Deputy) Run(cmd *exec.Cmd) error {
 			return err
 		}
 	}
+	return nil
+}
 
-	errsrc := &bytes.Buffer{}
-	if d.Errors == FromStderr {
-		if cmd.Stderr == nil {
-			cmd.Stderr = errsrc
-		} else {
-			cmd.Stderr = io.MultiWriter(cmd.Stderr, errsrc)
-		}
+func dualWriter(w1, w2 io.Writer) io.Writer {
+	if w1 == nil {
+		return w2
 	}
-	if d.Errors == FromStdout {
-		if cmd.Stdout == nil {
-			cmd.Stdout = errsrc
-		} else {
-			cmd.Stdout = io.MultiWriter(cmd.Stdout, errsrc)
-		}
+	if w2 == nil {
+		return w1
 	}
-
-	err := d.run(cmd)
-
-	if d.Errors == DefaultErrs {
-		return err
-	}
-
-	if err != nil && errsrc.Len() > 0 {
-		return fmt.Errorf("%s: %s", err, strings.TrimSpace(errsrc.String()))
-	}
-	return err
+	return io.MultiWriter(w1, w2)
 }
 
 func (d Deputy) run(cmd *exec.Cmd) error {
@@ -139,6 +150,10 @@ func (d Deputy) start(cmd *exec.Cmd, errs chan<- error) error {
 }
 
 func (d Deputy) wait(cmd *exec.Cmd, errs <-chan error) error {
+	// Note that it's important that we wait for the pipes
+	// to be closed before calling cmd.Wait otherwise
+	// Wait can close the pipes before we have read
+	// all their data.
 	var err1, err2 error
 	if d.stdoutPipe != nil {
 		err1 = <-errs
@@ -159,11 +174,11 @@ func firstErr(errs ...error) error {
 	return nil
 }
 
-func pipe(log func(string), r io.Reader, errs chan<- error) {
+func pipe(log func([]byte), r io.Reader, errs chan<- error) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		w := scanner.Text()
-		log(w)
+		b := scanner.Bytes()
+		log(b)
 	}
 
 	errs <- scanner.Err()

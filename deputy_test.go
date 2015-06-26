@@ -6,11 +6,9 @@ package deputy
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
-	"math"
+	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -34,7 +32,6 @@ type hasTimeout interface {
 func (*suite) TestRunTimeout(c *gc.C) {
 	cmd := maker{
 		timeout: time.Second * 2,
-		c:       c,
 	}.make()
 
 	err := Deputy{Timeout: time.Millisecond * 100}.Run(cmd)
@@ -48,9 +45,7 @@ func (*suite) TestRunTimeout(c *gc.C) {
 }
 
 func (*suite) TestRunNoTimeout(c *gc.C) {
-	cmd := maker{
-		c: c,
-	}.make()
+	cmd := maker{}.make()
 
 	err := Deputy{Timeout: time.Millisecond * 200}.Run(cmd)
 
@@ -62,7 +57,6 @@ func (*suite) TestStdoutErr(c *gc.C) {
 	cmd := maker{
 		stdout: output,
 		exit:   1,
-		c:      c,
 	}.make()
 	err := Deputy{Errors: FromStdout}.Run(cmd)
 	c.Assert(err, gc.ErrorMatches, ".*"+output)
@@ -74,12 +68,11 @@ func (*suite) TestStdoutOutput(c *gc.C) {
 	cmd := maker{
 		stdout: output,
 		exit:   1,
-		c:      c,
 	}.make()
 	cmd.Stdout = out
 	err := Deputy{Errors: FromStdout}.Run(cmd)
-	c.Assert(err, gc.ErrorMatches, ".*"+output)
-	c.Assert(output, gc.Equals, strings.TrimSpace(out.String()))
+	c.Check(err, gc.ErrorMatches, ".*"+output)
+	c.Check(output, gc.Equals, strings.TrimSpace(out.String()))
 }
 
 func (*suite) TestStderrOutput(c *gc.C) {
@@ -89,7 +82,6 @@ func (*suite) TestStderrOutput(c *gc.C) {
 	cmd := maker{
 		stderr: output,
 		exit:   1,
-		c:      c,
 	}.make()
 	cmd.Stderr = out
 	err := Deputy{Errors: FromStderr}.Run(cmd)
@@ -103,30 +95,28 @@ func (*suite) TestStderrErr(c *gc.C) {
 	cmd := maker{
 		stderr: output,
 		exit:   1,
-		c:      c,
 	}.make()
 	err := Deputy{Errors: FromStderr}.Run(cmd)
 	c.Assert(err, gc.ErrorMatches, ".*"+output)
 }
 
 func (*suite) TestLogs(c *gc.C) {
-	stdout := "foo!\necho foo2!"
-	stderr := "bar!\n>&2 echo bar2!"
+	stdout := "foo!"
+	stderr := "bar!"
 	cmd := maker{
 		stderr: stderr,
 		stdout: stdout,
-		c:      c,
 	}.make()
-	outs := []string{}
-	errs := []string{}
+	var logout []byte
+	var logerr []byte
 
 	err := Deputy{
-		StdoutLog: func(s string) { outs = append(outs, s) },
-		StderrLog: func(s string) { errs = append(errs, s) },
+		StdoutLog: func(b []byte) { logout = b },
+		StderrLog: func(b []byte) { logerr = b },
 	}.Run(cmd)
 	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(outs, gc.DeepEquals, []string{"foo!", "foo2!"})
-	c.Assert(errs, gc.DeepEquals, []string{"bar!", "bar2!"})
+	c.Check(string(logout), gc.DeepEquals, stdout)
+	c.Check(string(logerr), gc.DeepEquals, stderr)
 }
 
 type maker struct {
@@ -134,58 +124,49 @@ type maker struct {
 	stderr  string
 	exit    int
 	timeout time.Duration
-	c       *gc.C
 }
+
+const (
+	isHelperProc  = "GO_HELPER_PROCESS_OK"
+	helperStdout  = "GO_HELPER_PROCESS_STDOUT"
+	helperStderr  = "GO_HELPER_PROCESS_STDERR"
+	helperExit    = "GO_HELPER_PROCESS_EXIT_CODE"
+	helperTimeout = "GO_HELPER_PROCESS_TIMEOUT"
+)
 
 func (m maker) make() *exec.Cmd {
-	if runtime.GOOS == "windows" {
-		return m.winCmd()
+	cmd := exec.Command(os.Args[0], "-test.run=TestHelperProcess")
+	cmd.Env = []string{
+		fmt.Sprintf("%s=%s", isHelperProc, "1"),
+		fmt.Sprintf("%s=%s", helperStdout, m.stdout),
+		fmt.Sprintf("%s=%s", helperStderr, m.stderr),
+		fmt.Sprintf("%s=%d", helperExit, m.exit),
+		fmt.Sprintf("%s=%d", helperTimeout, m.timeout.Nanoseconds()),
 	}
-	return m.nixCmd()
+	return cmd
 }
 
-func (m maker) winCmd() *exec.Cmd {
-	var stderr string
-	if len(m.stderr) > 0 {
-		stderr = "echo " + m.stderr + " 1>&2\n"
+func TestHelperProcess(*testing.T) {
+	if os.Getenv(isHelperProc) != "1" {
+		return
 	}
-	var stdout string
-	if len(m.stdout) > 0 {
-		stdout = "echo " + m.stdout + "\n"
+	exit, err := strconv.Atoi(os.Getenv(helperExit))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error converting exit code: %s", err)
+		os.Exit(2)
 	}
-	var data string
-	if m.timeout > 0 {
-		secs := int(math.Ceil(m.timeout.Seconds()))
-		data = fmt.Sprintf("timeout /t %d\n%s%snexit %d", secs, stdout, stderr, m.exit)
-	} else {
-		data = fmt.Sprintf("%s%sexit %d", stdout, stderr, m.exit)
-	}
+	defer os.Exit(exit)
 
-	path := filepath.Join(m.c.MkDir(), "foo.bat")
-	err := ioutil.WriteFile(path, []byte(data), 0744)
-	m.c.Assert(err, jc.ErrorIsNil)
-	return exec.Command(path)
-}
-
-func (m maker) nixCmd() *exec.Cmd {
-	var stderr string
-	if len(m.stderr) > 0 {
-		stderr = ">&2 echo " + m.stderr + "\n"
+	nanos, err := strconv.Atoi(os.Getenv(helperTimeout))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error converting timeout: %s", err)
+		os.Exit(2)
 	}
-	var stdout string
-	if len(m.stdout) > 0 {
-		stdout = "echo " + m.stdout + "\n"
+	<-time.After(time.Duration(int64(nanos)) * time.Nanosecond)
+	if stderr := os.Getenv(helperStderr); stderr != "" {
+		fmt.Fprint(os.Stderr, stderr)
 	}
-	var data string
-	if m.timeout > 0 {
-		secs := int(math.Ceil(m.timeout.Seconds()))
-		data = fmt.Sprintf("#!/bin/sh\nsleep %d\n%s%sexit %d", secs, stdout, stderr, m.exit)
-	} else {
-		data = fmt.Sprintf("#!/bin/sh\n%s%sexit %d", stdout, stderr, m.exit)
+	if stdout := os.Getenv(helperStdout); stdout != "" {
+		fmt.Fprint(os.Stdout, stdout)
 	}
-
-	path := filepath.Join(m.c.MkDir(), "foo.sh")
-	err := ioutil.WriteFile(path, []byte(data), 0744)
-	m.c.Assert(err, jc.ErrorIsNil)
-	return exec.Command(path)
 }
