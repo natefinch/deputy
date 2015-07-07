@@ -1,0 +1,23 @@
+<guid isPermaLink="false">https://blog.bitbucket.org/?p=2458</guid>
+<description>
+<![CDATA[
+Today, we are deprecating support for Digest access authentication, or &#8220;Digest auth&#8221; on Bitbucket. Digest auth support is currently slated to be turned off on May 1st, 2015. What is Digest authentication? Digest auth (RFC-2617) is one of the older standardized methods of authenticating H
+]]>
+<![CDATA[
+TTP requests that was used to avoid sending a password in clear text, and to prevent replay attacks. Over unsecured channels it was (in the late 90s and early 00s) a much better approach than traditional Basic Auth. We have always offered Digest auth &#8212; currently under SSL only &#8212; as an alternative to Basic auth, but today very few users use it. Why are we deprecating it? Over the past couple of years, as SSL-only sites became the norm, having this end-to-end encryption has effectively made Digest auth obsolete. Today, Digest auth under SSL offers nothing over Basic Auth except added complexity and, in most cases, an additional round trip to request the necessary auth challenge. Bitbucket has been SSL-only for years and we have been planning to deprecate Digest auth. In recent years, Bitbucket&#8217;s Digest auth support has been limited to select endpoints, and aimed at providing backwards compatibility with older clients only. Next steps As of May 1st, clients that exclusively support Digest auth will cease to work. This might affect some older curl-based scripts that use the `&#8211;digest` parameter. Simply removing that parameter will make curl use Basic auth (over SSL, of course) instead. For all users, we recommend using one of the more modern auth methods available.
+]]>
+</description>
+<content:encoded>
+<![CDATA[
+<p><a href="https://blog.bitbucket.org/files/2015/04/digest_auth1.png" rel="lightbox[2458]"><img class="alignnone wp-image-2460" title="(image courtesy of Wikipedia)" src="https://blog.bitbucket.org/files/2015/04/digest_auth1.png" alt="digest_auth" width="614" height="156" /></a></p> <p>Today, we are deprecating support for Digest access authentication, or &#8220;Digest auth&#8221; on Bitbucket. Digest auth support is currently slated to be turned off on May 1st, 2015.</p> <p><strong>What is Digest authentication?</strong></p> <p>Digest auth (<a title="RFC-2617 Digest Authentication" href="https://www.ietf.org/rfc/rfc2617.txt" target="_blank">RFC-2617</a>) is one of the older standardized methods of authenticating HTTP requests that was used to avoid sending a password in clear text, and to prevent <a href="http://en.wikipedia.org/wiki/Replay_attack" target="_blank">replay attacks</a>. Over unsecured channels it was (in the late 90s and early 00s) a much better approach than traditional Basic Auth. We have always offered Digest auth &#8212; currently under SSL only &#8212; as an alternative to Basic auth, but today very few users use it.</p> <p><strong>Why are we deprecating it?</strong></p> <p>Over the past couple of years, as SSL-only sites became the norm, having this end-to-end encryption has effectively made Digest auth obsolete. Today, Digest auth under SSL offers nothing over Basic Auth except added complexity and, in most cases, an additional round trip to request the necessary auth challenge.</p> <p>Bitbucket has been SSL-only for years and we have been planning to deprecate Digest auth. In recent years, Bitbucket&#8217;s Digest auth support has been limited to select endpoints, and aimed at providing backwards compatibility with older clients only.</p> <p><strong>Next steps</strong></p> <p>As of May 1st, clients that exclusively support Digest auth will cease to work. This might affect some older curl-based scripts that use the `&#8211;digest` parameter. Simply removing that parameter will make curl use Basic auth (over SSL, of course) instead. For all users, we recommend using one of the <a href="https://confluence.atlassian.com/display/BITBUCKET/OAuth+on+Bitbucket" target="_blank">more modern auth methods available</a>.</p>
+]]>
+</content:encoded>
+<wfw:commentRss>
+http://blog.bitbucket.org/2015/04/03/fare-thee-well-digest-access-authentication/feed/
+</wfw:commentRss>
+<slash:comments>1</slash:comments>
+</item>
+<item>
+<title>OpenSSL Security Advisory</title>
+<link>
+http://blog.bitbucket.org/2015/03/19/openssl-security-advisory/
