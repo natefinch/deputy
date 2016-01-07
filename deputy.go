@@ -50,6 +50,15 @@ type Deputy struct {
 	stdoutPipe io.ReadCloser
 }
 
+// Deputyer is an interface for the Deputy struct
+// Added to make it easier to mock out Deputy in unit tests
+type Deputyer interface {
+	Run(cmd *exec.Cmd) error
+}
+
+// Checking that the Deputy struct implements the interface
+var _ Deputyer = (*Deputy)(nil)
+
 // Run starts the specified command and waits for it to complete.  Its behavior
 // conforms to the Options passed to it at construction time.
 //
