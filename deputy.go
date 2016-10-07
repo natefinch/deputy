@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"time"
 )
 
 // ErrorHandling is a flag that tells Deputy how to handle errors running a
@@ -34,9 +33,8 @@ const (
 // Deputy is a type that runs Commands with advanced options not available from
 // os/exec.  See the comments on field values for details.
 type Deputy struct {
-	// Timeout represents the longest time the command will be allowed to run
-	// before being killed.
-	Timeout time.Duration
+	// Cancel, when closed, will cause the command to close.
+	Cancel <-chan struct{}
 	// Errors describes how errors should be handled.
 	Errors ErrorHandling
 	// StdoutLog takes a function that will receive lines written to stdout from
@@ -113,7 +111,7 @@ func (d Deputy) run(cmd *exec.Cmd) error {
 	if err := d.start(cmd, errs); err != nil {
 		return err
 	}
-	if d.Timeout == 0 {
+	if d.Cancel == nil {
 		return d.wait(cmd, errs)
 	}
 
@@ -126,10 +124,9 @@ func (d Deputy) run(cmd *exec.Cmd) error {
 	}()
 
 	select {
-	case <-time.After(d.Timeout):
+	case <-d.Cancel:
 		// this may fail, but there's not much we can do about it
-		_ = cmd.Process.Kill()
-		return timeoutErr{cmd.Path}
+		return cmd.Process.Kill()
 	case <-done:
 		return err
 	}
@@ -182,16 +179,4 @@ func pipe(log func([]byte), r io.Reader, errs chan<- error) {
 	}
 
 	errs <- scanner.Err()
-}
-
-type timeoutErr struct {
-	path string
-}
-
-func (t timeoutErr) IsTimeout() bool {
-	return true
-}
-
-func (t timeoutErr) Error() string {
-	return fmt.Sprintf("timed out waiting for command %q to execute", t.path)
 }

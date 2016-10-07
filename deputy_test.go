@@ -1,6 +1,3 @@
-// Copyright 2015 Canonical Ltd.
-// Licensed under the LGPLv3, see LICENCE file for details.
-
 package deputy
 
 import (
@@ -12,57 +9,65 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	jc "github.com/juju/testing/checkers"
-	gc "gopkg.in/check.v1"
 )
 
-type suite struct{}
-
-var _ = gc.Suite(&suite{})
-
-func Test(t *testing.T) {
-	gc.TestingT(t)
-}
-
-type hasTimeout interface {
-	IsTimeout() bool
-}
-
-func (*suite) TestRunTimeout(c *gc.C) {
+func TestRunCancel(t *testing.T) {
 	cmd := maker{
 		timeout: time.Second * 2,
 	}.make()
 
-	err := Deputy{Timeout: time.Millisecond * 100}.Run(cmd)
+	cancel := make(chan struct{})
+	started := make(chan struct{})
+	finished := make(chan struct{})
+	var err error
+	go func() {
+		close(started)
+		err = Deputy{Cancel: cancel}.Run(cmd)
+		close(finished)
+	}()
+	select {
+	case <-started:
+	// good!
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for goroutine to run")
+	}
+	// give the code time to run a little
+	time.Sleep(50 * time.Millisecond)
+	close(cancel)
+	select {
+	case <-finished:
+	// good!
+	case <-time.After(time.Second):
+		t.Fatal("goroutine never cancelled!")
+	}
 
-	c.Assert(err, gc.NotNil)
-	if e, ok := err.(hasTimeout); !ok {
-		c.Errorf("Error caused by timeout does not have Timeout function")
-	} else {
-		c.Assert(e.IsTimeout(), jc.IsTrue)
+	if err != nil {
+		t.Fatalf("unexpected error returned from Run: %v", err)
 	}
 }
 
-func (*suite) TestRunNoTimeout(c *gc.C) {
+func TestRunNoTimeout(t *testing.T) {
 	cmd := maker{}.make()
+	err := Deputy{}.Run(cmd)
 
-	err := Deputy{Timeout: time.Millisecond * 200}.Run(cmd)
-
-	c.Assert(err, gc.IsNil)
+	if err != nil {
+		t.Fatalf("unexpected error returned from Run: %v", err)
+	}
 }
 
-func (*suite) TestStdoutErr(c *gc.C) {
+func TestStdoutErr(t *testing.T) {
 	output := "foooo"
 	cmd := maker{
 		stdout: output,
 		exit:   1,
 	}.make()
 	err := Deputy{Errors: FromStdout}.Run(cmd)
-	c.Assert(err, gc.ErrorMatches, ".*"+output)
+	if !strings.HasSuffix(err.Error(), output) {
+		t.Fatalf("Expected output of %q but got %q", output, err)
+	}
 }
 
-func (*suite) TestStdoutOutput(c *gc.C) {
+func TestStdoutOutput(t *testing.T) {
 	output := "foooo"
 	out := &bytes.Buffer{}
 	cmd := maker{
@@ -71,11 +76,16 @@ func (*suite) TestStdoutOutput(c *gc.C) {
 	}.make()
 	cmd.Stdout = out
 	err := Deputy{Errors: FromStdout}.Run(cmd)
-	c.Check(err, gc.ErrorMatches, ".*"+output)
-	c.Check(output, gc.Equals, strings.TrimSpace(out.String()))
+	if !strings.HasSuffix(err.Error(), output) {
+		t.Fatalf("Expected output of %q but got %q", output, err)
+	}
+	stdout := strings.TrimSpace(out.String())
+	if stdout != output {
+		t.Fatalf("Expected stdout of %q but got %q", output, stdout)
+	}
 }
 
-func (*suite) TestStderrOutput(c *gc.C) {
+func TestStderrOutput(t *testing.T) {
 	output := "foooo"
 	out := &bytes.Buffer{}
 
@@ -85,11 +95,16 @@ func (*suite) TestStderrOutput(c *gc.C) {
 	}.make()
 	cmd.Stderr = out
 	err := Deputy{Errors: FromStderr}.Run(cmd)
-	c.Assert(err, gc.ErrorMatches, ".*"+output)
-	c.Assert(output, gc.Equals, strings.TrimSpace(out.String()))
+	if !strings.HasSuffix(err.Error(), output) {
+		t.Fatalf("Expected output of %q but got %q", output, err)
+	}
+	stderr := strings.TrimSpace(out.String())
+	if stderr != output {
+		t.Fatalf("Expected stderr of %q but got %q", output, stderr)
+	}
 }
 
-func (*suite) TestStderrErr(c *gc.C) {
+func TestStderrErr(t *testing.T) {
 	output := "foooo"
 
 	cmd := maker{
@@ -97,10 +112,12 @@ func (*suite) TestStderrErr(c *gc.C) {
 		exit:   1,
 	}.make()
 	err := Deputy{Errors: FromStderr}.Run(cmd)
-	c.Assert(err, gc.ErrorMatches, ".*"+output)
+	if !strings.HasSuffix(err.Error(), output) {
+		t.Fatalf("Expected output of %q but got %q", output, err)
+	}
 }
 
-func (*suite) TestLogs(c *gc.C) {
+func TestLogs(t *testing.T) {
 	stdout := "foo!"
 	stderr := "bar!"
 	cmd := maker{
@@ -114,9 +131,15 @@ func (*suite) TestLogs(c *gc.C) {
 		StdoutLog: func(b []byte) { logout = b },
 		StderrLog: func(b []byte) { logerr = b },
 	}.Run(cmd)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Check(string(logout), gc.DeepEquals, stdout)
-	c.Check(string(logerr), gc.DeepEquals, stderr)
+	if err != nil {
+		t.Fatalf("unexpected error returned from Run: %v", err)
+	}
+	if string(logout) != stdout {
+		t.Fatalf("expected stdout to be %q but got %q", stdout, logout)
+	}
+	if string(logerr) != stderr {
+		t.Fatalf("expected stder to be %q but got %q", stderr, logerr)
+	}
 }
 
 type maker struct {
