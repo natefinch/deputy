@@ -1,4 +1,4 @@
-# deputy [![GoDoc](https://godoc.org/npf.io/deputy?status.svg)](https://godoc.org/npf.io/deputy) [![Build Status](https://drone.io/github.com/natefinch/deputy/status.png)](https://drone.io/github.com/natefinch/deputy/latest) [![Coverage Status](https://coveralls.io/repos/natefinch/deputy/badge.svg?branch=master)](https://coveralls.io/r/natefinch/deputy?branch=master)
+# deputy [![GoDoc](https://godoc.org/npf.io/deputy?status.svg)](https://godoc.org/npf.io/deputy) [![Build Status](https://drone.io/github.com/natefinch/deputy/status.png)](https://drone.io/github.com/natefinch/deputy/latest) 
 deputy is a go package that adds smarts on top of os/exec
 
 ![deputy-sm](https://cloud.githubusercontent.com/assets/3185864/8237448/6bc30102-15bd-11e5-9e87-6423197a73d6.jpg)
